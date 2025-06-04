@@ -144,6 +144,52 @@ class TestFlaskr:
             # the database state is not guaranteed. In a real-world scenario,
             # you might want to set up a known database state before running this test.
 
+    def test_remove_entry(self):
+        """
+        Test that a logged-in user can remove an entry.
+        """
+        with app.test_client() as client:
+            # Log in
+            client.post('/login', data={
+                'username': app.config['USERNAME'],
+                'password': app.config['PASSWORD']
+            })
+            
+            # Add an entry
+            client.post('/add', data={
+                'title': 'Test Title',
+                'text': 'Test Text'
+            })
+            
+            # Get the entries to find the ID of the entry we just added
+            with app.app_context():
+                db = get_db()
+                entry = db.execute('SELECT id FROM entries WHERE title = ?', ['Test Title']).fetchone()
+                entry_id = entry['id']
+            
+            # Remove the entry
+            response = client.post(f'/remove/{entry_id}', follow_redirects=True)
+            
+            # Check if the entry was removed successfully
+            assert response.status_code == 200
+            assert b'Entry was successfully removed' in response.data
+            
+            # Verify the entry is no longer in the database
+            with app.app_context():
+                db = get_db()
+                entry = db.execute('SELECT * FROM entries WHERE id = ?', [entry_id]).fetchone()
+                assert entry is None
+
+    def test_remove_entry_unauthorized(self):
+        """
+        Test that an unauthorized user cannot remove an entry.
+        """
+        with app.test_client() as client:
+            # Try to remove an entry without logging in
+            response = client.post('/remove/1')
+            
+            # Should get a 401 Unauthorized response
+            assert response.status_code == 401
 
 
 class AuthActions(object):
